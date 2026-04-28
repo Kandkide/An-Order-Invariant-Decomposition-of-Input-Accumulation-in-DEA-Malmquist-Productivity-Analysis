@@ -73,13 +73,7 @@ This project uses PWT (Penn World Table) data.
 
 ### 3.2 Main Python Scripts
 
-- **For KR (Kumar & Russell) Reproduction**
-
-  python-scripts/minimum_code_for_paper_2026_replicate_KR.py
-
-- **For Standard Execution**
-
-  python-scripts/minimum_code_for_paper_2026.py
+- minimum_code_for_paper_2026_JPA.py
 
 ### 3.3 VS Code shortcut to run Python scripts
 
