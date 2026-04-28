@@ -533,7 +533,7 @@ def _build_input_combo(x_t_row, x_t1_row, bits):
     combo = np.where(np.array(bits)==1, x_t1, x_t)
     return combo
 
-def _cagr(num, year_t, year_t1, label=None, total_growth=False):
+def _cagr(num, year_t=0, year_t1=1, label=None, total_growth=False):
     # 付加情報がある場合のプレフィックスを作成
     info = f" [{label}]" if label is not None else ""
 
@@ -551,18 +551,22 @@ def _cagr(num, year_t, year_t1, label=None, total_growth=False):
     if num < 0:
         print(f"[WARN]{info} CAGR negative input (undefined): num={num}")
         return np.nan
-
-    # 4. 期間のチェック
+    
+    # 4. 期間のチェック (None の場合も期間が不正なら落とす仕様を維持)
     delta_t = year_t1 - year_t
     if delta_t <= 0:
         print(f"[WARN]{info} Invalid period: delta_t={delta_t}")
         return np.nan
-
-    if (total_growth):
-        # 累積成長率を返す
-        return (num - 1) * 100 # KR like
+    
+    # --- 戻り値の分岐処理 ---
+    if total_growth is None:
+        # 【追加】バリデーション通過後、計算せずにそのまま返す
+        return num
+    elif total_growth:
+        # 累積成長率を返す (True の場合)
+        return (num - 1) * 100
     else:
-        # 標準的なCAGRの計算式
+        # 標準的なCAGRの計算式 (False の場合)
         return (num ** (1 / delta_t) - 1) * 100
 
 def _safe_div(a, b):
@@ -612,7 +616,11 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
         df_mi に追加する。
     keep_columns : list of str, optional
         df_new に引き継ぎたい元のデータフレームの列名リスト。
-    total_growth : df_miの結果列をCAGRではなく累積成長率(%)で表示。デフォルトはFalse
+    total_growth : bool or None, default False
+        df_mi の結果列（成長率・指数）の計算方法と単位を指定する。
+        - False (デフォルト): 年平均成長率 (CAGR %) として算出。
+        - True: 期間全体の累積成長率 (%) として算出。
+        - None: 演算（-1 や指数計算）を行わず、元の倍率 (raw ratio) のまま算出。
 
     Returns
     -------
@@ -628,14 +636,19 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
 
     df_mi : pandas.DataFrame
         DMU ごとの Malmquist 型分解結果。
-        含まれる指標：
-        - Total (%) : y1/y0 の CAGR
-        - TFP (%)   : EFF + TECH（総合的生産性変化）
-        - EFF (%)   : 効率変化
-        - TECH (%)  : 技術変化
-        - ACCUM (%) : 入力量の蓄積効果
-        - ACCUMk (%): 各入力 k の寄与（m > 1 の場合）
-        debug=True の場合、ACCUM_calc などの検算列も追加。
+        表示単位は `total_growth` の値により次のように動的に変化する：
+        - total_growth=None  : 'raw ratio' (例: 1.05)
+        - total_growth=True  : 'Total %'    (例: 5.0)
+        - total_growth=False : 'CAGR %'     (例: 2.47)
+
+        含まれる主な指標：
+        - Total   : y1/y0 の変化
+        - TFP     : EFF * TECH（総合的生産性変化）
+        - EFF     : 効率変化 (Efficiency Change)
+        - TECH    : 技術変化 (Technical Change)
+        - ACCUM   : 入力量の蓄積効果 (Accumulation Effect)
+        - ACCUM_k : 各入力 k の寄与（m > 1 の場合）
+        ※ debug=True の場合、内部検算用の列も追加される。
 
     Notes
     -----
@@ -648,10 +661,9 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
         EFF  = φ_{p0,onF0}(t) / φ_{p1,onF1}(t+1)
         TECH = sqrt( (F1_p0/F0_p0) * (F1_p1/F0_p1) )
         ACCUM = sqrt( (F0_p1/F0_p0) * (F1_p1/F1_p0) )
-      ACCUM_k は、入力 k のビットだけを変化させたパターン間の比を
-      幾何平均して求める。
-
-    • すべての MI 指標は、year_t → year_t1 の CAGR (%) として返す。
+        ACCUM_k は、入力 k のビットだけを変化させたパターン間の比を幾何平均して求める。
+      ※ total_growth が None 以外の場合は、これらに対して期間 (year_t1 - year_t) 
+         に基づく CAGR または累積成長率の変換が行われる。
 
     • 両期間に共通する DMU が存在しない場合、空の DataFrame を返す。
 
@@ -796,6 +808,9 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
             if np.isnan(TECH) or np.isnan(ACCUM):
                 print(f"  > Critical: Recalculation failed. Inputs: F0_p0={F0_p0}, F1_p0={F1_p0}, F0_p1={F0_p1}, F1_p1={F1_p1}")
 
+        # --- 新設: TFP = EFF * TECH --- 2026-03-21 00:46:10に変更
+        TFP = EFF * TECH
+
         ACCUM_k_list = []
         ACCUM_calc = 1.0
 
@@ -847,11 +862,12 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
             eff_cagr   = _cagr(EFF, year_t, year_t1, dmu, total_growth)
             tech_cagr  = _cagr(TECH, year_t, year_t1, dmu, total_growth)
             accum_cagr = _cagr(ACCUM, year_t, year_t1, dmu, total_growth)
+            tfp_cagr = _cagr(TFP, year_t, year_t1, dmu, total_growth) # 2026-03-21 00:46:10に変更
             accum_calc_cagr = _cagr(ACCUM_calc, year_t, year_t1, dmu, total_growth)
             ec_calc_cagr = _cagr(EC_calc, year_t, year_t1, dmu, total_growth)
 
-            # --- 新設: TFP = EFF_cagr + TECH_cagr ---
-            tfp_cagr = eff_cagr + tech_cagr
+            # # --- 新設: TFP = EFF_cagr + TECH_cagr ---
+            # tfp_cagr = eff_cagr + tech_cagr # 2026-03-21 00:46:10に変更(コメント化)
 
             row = [
                 dmu,
@@ -870,9 +886,10 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
             eff_cagr   = _cagr(EFF, year_t, year_t1, dmu, total_growth)
             tech_cagr  = _cagr(TECH, year_t, year_t1, dmu, total_growth)
             accum_cagr = _cagr(ACCUM, year_t, year_t1, dmu, total_growth)
+            tfp_cagr = _cagr(TFP, year_t, year_t1, dmu, total_growth) # 2026-03-21 00:46:10に変更
 
-            # --- 新設: TFP = EFF_cagr + TECH_cagr ---
-            tfp_cagr = eff_cagr + tech_cagr
+            # # --- 新設: TFP = EFF_cagr + TECH_cagr ---
+            # tfp_cagr = eff_cagr + tech_cagr # 2026-03-21 00:46:10に変更(コメント化)
 
             row = [
                 dmu,
@@ -910,7 +927,7 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
 
         rows.append(row)
 
-    _unit = '%'
+    _unit = 'raw ratio' if total_growth is None else ('Total %' if total_growth else 'CAGR %')
     if debug:
         colnames = [f'{orig_dmu_name}', f'Total ({_unit})', f'TFP ({_unit})', f'EFF ({_unit})', f'EFF_calc ({_unit})',
                     f'TECH ({_unit})', f'ACCUM ({_unit})', f'ACCUM_calc ({_unit})']

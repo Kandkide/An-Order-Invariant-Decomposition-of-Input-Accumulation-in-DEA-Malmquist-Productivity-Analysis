@@ -1,12 +1,12 @@
-# Heterogeneous-Sources-of-Productivity-Growth-along-DEA-Based-Hourly-Frontiers
+# Estimating-Hourly-Productivity-Frontiers-by-DEA
 
-This is a repository for releasing Python code to reproduce the estimation results from the paper "Heterogeneous Sources of Productivity Growth along DEA-Based Hourly Frontiers: A Path-Symmetrized Malmquist Decomposition of Physical and Human Capital Accumulation". It estimates hourly productivity frontiers using DEA (Data Envelopment Analysis).
+This is a repository for An Order-Invariant Decomposition of Input Accumulation in DEA–Malmquist Productivity Analysis.
 
 ## 1. Overview
 
 - **Repository URL**
 
-https://github.com/Kandkide/Heterogeneous-Sources-of-Productivity-Growth-along-DEA-Based-Hourly-Frontiers.git
+  https://github.com/Kandkide/An-Order-Invariant-Decomposition-of-Input-Accumulation-in-DEA-Malmquist-Productivity-Analysis.git
 
 - **License**
 
@@ -34,7 +34,7 @@ https://github.com/Kandkide/Heterogeneous-Sources-of-Productivity-Growth-along-D
 
 Obtain the repository using the following command.
 
-```git clone https://github.com/Kandkide/Estimating-Hourly-Productivity-Frontiers-by-DEA.git .```
+```git clone https://github.com/Kandkide/An-Order-Invariant-Decomposition-of-Input-Accumulation-in-DEA-Malmquist-Productivity-Analysis.git .```
 
 ### 2.2 Creating a Virtual Environment
 

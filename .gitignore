@@ -56,7 +56,9 @@
 *.lyx~
 *.odt*
 *.eps
-*.tex
+*.cpt
+*.blg
+*.log
 temporary_del_anytime/
 old_and_etc/
 lyx_previous_versions/

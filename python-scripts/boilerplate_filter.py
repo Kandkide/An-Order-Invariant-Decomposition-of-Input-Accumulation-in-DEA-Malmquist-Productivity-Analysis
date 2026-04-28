@@ -154,7 +154,7 @@ FINAL_COMPACT = {
     "Nigeria", "Angola", "Gabon", "Equatorial Guinea",
     "Chad", "South Sudan", "Sudan", "Congo",
     "Venezuela", "Ecuador", "Trinidad and Tobago",
-    "Venezuela (Bolivarian Republic of)", "Iran"
+    "Venezuela (Bolivarian Republic of)", "Iran", "Myanmar"
 }
 
 SECOND_COMPACT = FINAL_COMPACT | {
