@@ -1,0 +1,16 @@
+pandas
+tabulate
+prettytable
+matplotlib
+openpyxl
+seaborn
+sdmx1
+scipy
+# missingno # 欠損値チェック
+statsmodels
+linearmodels
+pyperclip
+cvxpy
+adjustText
+xlrd
+scikit-learn
