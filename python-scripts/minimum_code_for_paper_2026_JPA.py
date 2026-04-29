@@ -1,9 +1,9 @@
 """minimum_code_for_paper_2026.py
 """
 import pandas as pd
+from tabulate import tabulate
 
 from boilerplate_dea import dea_add_frontier_point_estimates
-from boilerplate_tabulate import tabulate_simple
 from boilerplate_filter import filter_oil_producers
 
 # from Local file
@@ -26,12 +26,12 @@ pwt110_df = filter_oil_producers(pwt110_df, mode='final', invert=True)
 
 # --- the Malmquist decomposition ---
 _, result = dea_add_frontier_point_estimates(pwt110_df, year_t=2000, year_t1=2010, inputs=['rn_per_hour_worked'], outputs=['rgdpo_per_hour_worked'], keep_columns=['countrycode'], total_growth=None)
-result_tabulated = tabulate_simple(result, showindex=True)
+result_tabulated = tabulate(result, headers='keys', tablefmt='pretty', showindex=True)
 print("Table 1")
 print(result_tabulated)
 
 _, result = dea_add_frontier_point_estimates(pwt110_df, year_t=2000, year_t1=2010, inputs=['rn_per_hour_worked', 'hc'], outputs=['rgdpo_per_hour_worked'], keep_columns=['countrycode'], total_growth=None)
-result_tabulated = tabulate_simple(result, showindex=True)
+result_tabulated = tabulate(result, headers='keys', tablefmt='pretty', showindex=True)
 print("Table 2")
 print(result_tabulated)
 
