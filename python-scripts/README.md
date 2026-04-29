@@ -64,7 +64,7 @@ This project uses **Penn World Table (PWT) 11.0** data.
 ### 3.1 Activate the Python Virtual Environment
 
 ```bash
-source ./init_python_venv.sh
+source ./startup-execution-commands.sh
 ```
 
 ### 3.2 Main Python Script
@@ -74,8 +74,8 @@ source ./init_python_venv.sh
 ### 3.3 Run from CLI (recommended for replication)
 
 ```bash
-source ./init_python_venv.sh
-python ./python-scripts/minimum_code_for_paper_2026_JPA.py
+source ./startup-execution-commands.sh
+python minimum_code_for_paper_2026_JPA.py
 ```
 
 ### 3.4 Outputs (what to expect)
@@ -90,8 +90,8 @@ Expected terminal output:
 To save the printed tables for replication records, redirect stdout to a file:
 
 ```bash
-source ./init_python_venv.sh
-python ./python-scripts/minimum_code_for_paper_2026_JPA.py | tee replication_tables_2000_2010.txt
+source ./startup-execution-commands.sh
+python minimum_code_for_paper_2026_JPA.py | tee replication_tables_2000_2010.txt
 ```
 ### 3.5 VS Code shortcut to run Python scripts (optional)
 
