@@ -1,4 +1,4 @@
-"""minimum_code_for_paper_2026.py
+"""minimum_code_for_paper_2026_JPA.py
 """
 import pandas as pd
 from tabulate import tabulate

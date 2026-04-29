@@ -1,84 +1,100 @@
 # An-Order-Invariant-Decomposition-of-Input-Accumulation-in-DEA-Malmquist-Productivity-Analysis
 
-This is a repository for An Order-Invariant Decomposition of Input Accumulation in DEA–Malmquist Productivity Analysis.
+This repository contains replication code for **“An Order-Invariant Decomposition of Input Accumulation in DEA–Malmquist Productivity Analysis.”**
+It reproduces the tabulated outputs underlying **Tables 1–2** reported in the paper.
 
 ## 1. Overview
 
 - **Repository URL**
-
-  https://github.com/Kandkide/An-Order-Invariant-Decomposition-of-Input-Accumulation-in-DEA-Malmquist-Productivity-Analysis.git
+  - https://github.com/Kandkide/An-Order-Invariant-Decomposition-of-Input-Accumulation-in-DEA-Malmquist-Productivity-Analysis.git
 
 - **License**
-
-  MIT License
+  - MIT License
 
 - **Recommended Operating Environment**
-
   - **OS**: Ubuntu 24.04.4 LTS
-
   - **Language**: Python 3.12
-
-  - **IDE**: VS Code (Visual Studio Code)
+  - **IDE**: VS Code (Visual Studio Code) *(optional)*
 
 ---
 
 ## 2. Setup
 
- - Create the folder you want to clone.
-
- - Open the folder in VS Code.
-
- - Execute all commands in the following steps within the VS Code terminal.
+- Create (or choose) a folder to clone this repository.
+- Open the folder in VS Code (optional).
+- Execute all commands below in a terminal (VS Code terminal or any shell).
 
 ### 2.1 Cloning the Repository
 
-Obtain the repository using the following command.
-
-```git clone https://github.com/Kandkide/An-Order-Invariant-Decomposition-of-Input-Accumulation-in-DEA-Malmquist-Productivity-Analysis.git .```
+```bash
+git clone https://github.com/Kandkide/An-Order-Invariant-Decomposition-of-Input-Accumulation-in-DEA-Malmquist-Productivity-Analysis.git .  
+```
 
 ### 2.2 Creating a Virtual Environment
 
-Execute the following command to initialize the Python 3.12 virtual environment.
+Initialize a Python 3.12 virtual environment and install required packages:
 
-```./init_python_venv.sh```
+```bash
+./init_python_venv.sh
+```
 
-### 2.3 Data Used
+### 2.3 Data Used (PWT 11.0)
 
-This project uses PWT (Penn World Table) data.
+This project uses **Penn World Table (PWT) 11.0** data.
 
 - **Data Source**
+  - PWT website: https://www.rug.nl/ggdc/productivity/pwt/
+  - Dataverse (recommended, DOI): https://doi.org/10.34894/FABVLR
 
-  https://www.rug.nl/ggdc/productivity/pwt/
+- **Target File**
+  - `pwt110.xlsx` (PWT 11.0)
 
-- **Target Files**
+- **Location for Data File**
+  - Create the folder below and place the file there:
+    - `./data/`
+    - `./data/pwt110.xlsx`
 
-  - pwt56_forweb.xls
+> Note: This repository does **not** redistribute the PWT data file.
+> Please download it from the sources above.
 
-  - pwt110.xlsx
-
-- **Location for Data Files**
-
-  - ./data/
-
-  - Create the folder yourself and place the files there.
 ---
 
 ## 3. Execution Method (Usage)
 
 ### 3.1 Activate the Python Virtual Environment
 
-- **Command**
+```bash
+source ./startup-execution-commands.sh
+```
 
-  ```source ./startup-execution-commands.sh```
+### 3.2 Main Python Script
 
-### 3.2 Main Python Scripts
+- `minimum_code_for_paper_2026_JPA.py`
 
-- minimum_code_for_paper_2026_JPA.py
+### 3.3 Run from CLI (recommended for replication)
 
-### 3.3 VS Code shortcut to run Python scripts
+```bash
+source ./startup-execution-commands.sh
+python minimum_code_for_paper_2026_JPA.py
+```
+
+### 3.4 Outputs (what to expect)
+
+`minimum_code_for_paper_2026_JPA.py` does **not** write output files by default.
+Instead, it prints tabulated results to **standard output** (stdout) using `tabulate`.
+
+Expected terminal output:
+- A header line `Table 1`, followed by a tabulated table (one-input case)
+- A header line `Table 2`, followed by a tabulated table (two-input case)
+
+To save the printed tables for replication records, redirect stdout to a file:
+
+```bash
+source ./startup-execution-commands.sh
+python minimum_code_for_paper_2026_JPA.py | tee replication_tables_2000_2010.txt
+```
+### 3.5 VS Code shortcut to run Python scripts (optional)
 
 - **Start Debugging**: F5
-
 - **Run Without Debugging**: Ctrl + F5
 
----
