@@ -1,4 +1,4 @@
-# Estimating-Hourly-Productivity-Frontiers-by-DEA
+# An-Order-Invariant-Decomposition-of-Input-Accumulation-in-DEA-Malmquist-Productivity-Analysis
 
 This is a repository for An Order-Invariant Decomposition of Input Accumulation in DEA–Malmquist Productivity Analysis.
 

@@ -1,16 +1,10 @@
 """minimum_code_for_paper_2026.py
 """
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 
-from boilerplate_dea import dea_add_frontier_point_estimates, dea_expand_all_years
+from boilerplate_dea import dea_add_frontier_point_estimates
 from boilerplate_tabulate import tabulate_simple
-from boilerplate_filter import filter_multiindex, filter_oil_producers
-from boilerplate_plot import plot_multiindex_scatter_by_column
-from boilerplate_plot3d import plot_multiindex_scatter_3d, plot_multiindex_scatter_3d_overlay
-from boilerplate_plot_kde import plot_multiindex_kde
-from boilerplate_estimate import estimate_simple_ols
+from boilerplate_filter import filter_oil_producers
 
 # from Local file
 df = pd.read_excel('data/pwt110.xlsx', sheet_name='Data')
