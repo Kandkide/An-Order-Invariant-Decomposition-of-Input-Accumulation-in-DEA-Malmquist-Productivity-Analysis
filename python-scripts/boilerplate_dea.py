@@ -3,6 +3,12 @@ import pandas as pd
 import cvxpy as cp
 
 import itertools
+import math
+
+try:
+    from tabulate import tabulate
+except ImportError:
+    tabulate = None
 
 
 def _prepare_df_for_year_v2(df, year, inputs, outputs, label_level=None, keep_columns=None):
@@ -61,21 +67,17 @@ def _prepare_df_for_year_v2(df, year, inputs, outputs, label_level=None, keep_co
 
 
 # --- 追加ヘルパー: 参照フロンティア（ref_year）の X_ref, Y_ref に対して任意の評価点群を評価する ---
-def _evaluate_against_reference(df, ref_year, eval_df, inputs, outputs, rts='VRS', orientation='output', solver=None):
+def _evaluate_against_reference_xy(X_ref, Y_ref, eval_df, inputs, outputs,
+                                  rts='VRS', orientation='output', solver=None):
     """
-    ref_year のフロンティア (X_ref, Y_ref) に対して、eval_df の各行 (inputs, outputs) を評価する。
-    - eval_df: pandas.DataFrame（index は評価対象 DMU のラベル、columns に inputs+outputs を含む）
-    - 戻り値: pandas.Series of scores (index = eval_df.index)
+    参照フロンティアを (X_ref, Y_ref) として直接受け取り、
+    eval_df の各行 (inputs, outputs) を評価して φ (or θ) を返す。
+    戻り値: pandas.Series (index = eval_df.index)
     """
-    # 参照フロンティアを準備
-    df_ref, _, X_ref, Y_ref, _ = _prepare_df_for_year_v2(df, ref_year, inputs, outputs, label_level=None)
     n_ref = X_ref.shape[1]
-    m_in = X_ref.shape[0]
-    m_out = Y_ref.shape[0]
 
     scores = pd.Series(index=eval_df.index, dtype=float)
 
-    # 各評価点について LP を解く（出力指向のみを想定しているが、orientation を引き継ぐ）
     for idx, row in eval_df.iterrows():
         x0 = row[inputs].to_numpy().astype(float)
         y0 = row[outputs].to_numpy().astype(float)
@@ -119,6 +121,12 @@ def _evaluate_against_reference(df, ref_year, eval_df, inputs, outputs, rts='VRS
 
     return scores
 
+def _make_bit_labels(m):
+    """長さ m の全ビット列を 'p' + bits で返す（例: p00, p01, ...）。順序は lexicographic (0..1)。"""
+    labels = []
+    for bits in itertools.product([0,1], repeat=m):
+        labels.append('p' + ''.join(str(b) for b in bits))
+    return labels
 
 def _build_input_combo(x_t_row, x_t1_row, bits):
     """
@@ -130,7 +138,6 @@ def _build_input_combo(x_t_row, x_t1_row, bits):
     x_t1 = np.asarray(x_t1_row, dtype=float)
     combo = np.where(np.array(bits)==1, x_t1, x_t)
     return combo
-
 
 def _cagr(num, year_t=0, year_t1=1, label=None, total_growth=False):
     # 付加情報がある場合のプレフィックスを作成
@@ -179,9 +186,31 @@ def _safe_div(a, b):
         return np.nan
 
 
+def _get_F_value(df_new, dmu, year_t, out, label, frontier_id):
+    """
+    F(p, t) を返すヘルパー。
+    - frontier_id: 0 -> period t frontier, 1 -> period t+1 frontier
+    - まず proj 列（phi_col_out）があればそれを使う。
+    - なければ phi 列 × y(year_t) で F を復元する。
+      （あなたの実装では phi は y(year_t) を使って評価しているため一致する）
+    """
+    phi_col = f"{label}_phi_onF{frontier_id}"
+    proj_col = f"{phi_col}_{out}"
+
+    if proj_col in df_new.columns:
+        return df_new.loc[(dmu, year_t), proj_col]
+
+    # proj 列が無い場合は φ×y で復元
+    y_base = df_new.loc[(dmu, year_t), out]
+    phi = df_new.loc[(dmu, year_t), phi_col]
+    if pd.isna(phi) or pd.isna(y_base):
+        return np.nan
+    return float(phi) * float(y_base)
+
+
 def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
                                                   rts='VRS', orientation='output', solver=None,
-                                                  label_level=None, include_proj_outputs=True, debug=False, keep_columns=None, total_growth=False, **kwargs):
+                                                  label_level=None, debug=False, keep_columns=None, total_growth=False, **kwargs):
     """
     2 期間 t・t+1 のデータについて、m 個の入力に対する 2^m 通りの
     「入力ミックス（ビットパターン）」をすべて生成し、それぞれの
@@ -208,8 +237,6 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
         `_evaluate_against_reference` に渡す DEA ソルバー。
     label_level : optional
         MultiIndex のどの階層が DMU 名かを指定する場合に使用。
-    include_proj_outputs : bool, default True
-        True の場合、各 φ 列に対して φ·y の投影出力列も作成。
     debug : bool, default False
         True の場合、ACCUM_calc や EC_calc など内部検算用の列を
         df_mi に追加する。
@@ -321,15 +348,15 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
         eval_df_t = pd.DataFrame(eval_rows_t)
         eval_df_t1 = pd.DataFrame(eval_rows_t1)
 
-        # φ を 4 通り計算
-        phi_t_on_t = _evaluate_against_reference(df, year_t, eval_df_t, inputs, outputs,
-                                                 rts=rts, orientation=orientation, solver=solver)
-        phi_t1_on_t = _evaluate_against_reference(df, year_t, eval_df_t1, inputs, outputs,
-                                                  rts=rts, orientation=orientation, solver=solver)
-        phi_t_on_t1 = _evaluate_against_reference(df, year_t1, eval_df_t, inputs, outputs,
-                                                  rts=rts, orientation=orientation, solver=solver)
-        phi_t1_on_t1 = _evaluate_against_reference(df, year_t1, eval_df_t1, inputs, outputs,
-                                                   rts=rts, orientation=orientation, solver=solver)
+        # φ を 4 通り計算（参照フロンティアは X_t/Y_t, X_t1/Y_t1 を使い回す）
+        phi_t_on_t   = _evaluate_against_reference_xy(X_t,  Y_t,  eval_df_t,  inputs, outputs,
+                                                    rts=rts, orientation=orientation, solver=solver)
+        phi_t1_on_t  = _evaluate_against_reference_xy(X_t,  Y_t,  eval_df_t1, inputs, outputs,
+                                                    rts=rts, orientation=orientation, solver=solver)
+        phi_t_on_t1  = _evaluate_against_reference_xy(X_t1, Y_t1, eval_df_t,  inputs, outputs,
+                                                    rts=rts, orientation=orientation, solver=solver)
+        phi_t1_on_t1 = _evaluate_against_reference_xy(X_t1, Y_t1, eval_df_t1, inputs, outputs,
+                                                    rts=rts, orientation=orientation, solver=solver)
 
         for f, (phi_eval_t, phi_eval_t1) in enumerate(((phi_t_on_t, phi_t1_on_t), (phi_t_on_t1, phi_t1_on_t1))):
             phi_col = f"{label}_phi_onF{f}"
@@ -340,20 +367,19 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
                 df_new.loc[(dmu, year_t), phi_col] = phi_eval_t.loc[dmu]
                 df_new.loc[(dmu, year_t1), phi_col] = phi_eval_t1.loc[dmu]
 
-            if include_proj_outputs:
-                for out in outputs:
-                    proj_col = f"{phi_col}_{out}"
-                    if proj_col not in df_new.columns:
-                        df_new[proj_col] = np.nan
+            for out in outputs:
+                proj_col = f"{phi_col}_{out}"
+                if proj_col not in df_new.columns:
+                    df_new[proj_col] = np.nan
 
-                    for dmu in idx_common:
-                        y0 = df_t.loc[dmu, out]
-                        phi_at_t = df_new.loc[(dmu, year_t), phi_col]
-                        df_new.loc[(dmu, year_t), proj_col] = (phi_at_t * y0) if not pd.isna(phi_at_t) else np.nan
+                for dmu in idx_common:
+                    y0 = df_t.loc[dmu, out]
+                    phi_at_t = df_new.loc[(dmu, year_t), phi_col]
+                    df_new.loc[(dmu, year_t), proj_col] = (phi_at_t * y0) if not pd.isna(phi_at_t) else np.nan
 
-                        y1 = df_t1.loc[dmu, out]
-                        phi_at_t1 = df_new.loc[(dmu, year_t1), phi_col]
-                        df_new.loc[(dmu, year_t1), proj_col] = (phi_at_t1 * y1) if not pd.isna(phi_at_t1) else np.nan
+                    y1 = df_t1.loc[dmu, out]
+                    phi_at_t1 = df_new.loc[(dmu, year_t1), phi_col]
+                    df_new.loc[(dmu, year_t1), proj_col] = (phi_at_t1 * y1) if not pd.isna(phi_at_t1) else np.nan
 
 
     # --- keep_columns の列名リストを決定（存在する列のみ、順序は df_t_keep 優先） ---
@@ -366,7 +392,8 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
         # 重複や None を排除
         keep_cols = [c for c in keep_cols if c is not None]
 
-
+    # --- via p10 / via p01 と symm(G1,G2) の比較表 ---
+    path_compare_rows = []
 
     # MI/TC/MI_k/EC の計算（従来ロジック）
     rows = []
@@ -387,6 +414,8 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
 
         TECH = np.sqrt(t_p1 * t_p2)
         ACCUM = np.sqrt(a_p1 * a_p2)
+
+        ACCUM_pre = ACCUM  # NaN補正前のACCUM（比較用）
 
         if np.isnan(TECH) or np.isnan(ACCUM):
             print(f"\n[DEBUG] NaN detected for DMU: {dmu} ({year_t} -> {year_t1})")
@@ -410,45 +439,153 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
         # --- 新設: TFP = EFF * TECH --- 2026-03-21 00:46:10に変更
         TFP = EFF * TECH
 
+        # --- ここから ACCUM_k 計算の置き換え本体 ---
         ACCUM_k_list = []
         ACCUM_calc = 1.0
+
+        # --- ∏G_k を作るために raw の G_k（=ACCUM_k）も保持 ---
+        ACCUM_k_raw_list = []
 
         if m == 1:
             ACCUM_calc = ACCUM
         else:
+            m_fact = math.factorial(m)  # m!
             for k in range(m):
-                ratios = []
-                nan_detected = False
+
+                # 論文の定義：
+                # G_k = Π_{σ∈S_m} ( r^{(t)}_{σ,posσ(k)} r^{(t+1)}_{σ,posσ(k)} )^{1/(2m!)}
+                # を「直前集合 S の重み |S|!(m-|S|-1)!」で集計して実装する [1](https://kwanseio365-my.sharepoint.com/personal/fjn61288_nuc_kwansei_ac_jp/Documents/Microsoft%20Copilot%20%E3%83%81%E3%83%A3%E3%83%83%E3%83%88%20%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB/ForJPA_v3.pdf)
+
+                log_sum = 0.0
+                valid = True
+
                 for other_bits in itertools.product([0, 1], repeat=m - 1):
-                    bits0 = list(other_bits); bits0.insert(k, 0); label0 = 'p' + ''.join(str(b) for b in bits0)
-                    bits1 = list(other_bits); bits1.insert(k, 1); label1 = 'p' + ''.join(str(b) for b in bits1)
+                    s = int(sum(other_bits))  # |S|
+                    weight = math.factorial(s) * math.factorial(m - s - 1)  # |S|!(m-|S|-1)!
 
-                    F0_0 = df_new.loc[(dmu, year_t), f"{label0}_phi_onF0_{out}"]
-                    F0_1 = df_new.loc[(dmu, year_t), f"{label1}_phi_onF0_{out}"]
-                    F1_0 = df_new.loc[(dmu, year_t1), f"{label0}_phi_onF1_{out}"]
-                    F1_1 = df_new.loc[(dmu, year_t1), f"{label1}_phi_onF1_{out}"]
+                    # bits0: kが0、他は other_bits
+                    bits0 = list(other_bits)
+                    bits0.insert(k, 0)
+                    label0 = 'p' + ''.join(str(b) for b in bits0)
 
-                    r1 = _safe_div(F0_1, F0_0)
-                    r2 = _safe_div(F1_1, F1_0)
+                    # bits1: kが1、他は other_bits
+                    bits1 = list(other_bits)
+                    bits1.insert(k, 1)
+                    label1 = 'p' + ''.join(str(b) for b in bits1)
 
-                    if pd.isna(r1) or pd.isna(r2):
-                        nan_detected = True
-                    if not pd.isna(r1):
-                        ratios.append(r1)
-                    if not pd.isna(r2):
-                        ratios.append(r2)
+                    # F_t(·) と F_{t+1}(·) を取得（年は year_t 行を統一的に使用）
+                    F0_0 = _get_F_value(df_new, dmu, year_t, out, label0, frontier_id=0)  # F(label0, t)
+                    F0_1 = _get_F_value(df_new, dmu, year_t, out, label1, frontier_id=0)  # F(label1, t)
 
-                if nan_detected or len(ratios) == 0:
-                    print(f"[WARN][{dmu}] ACCUM_k: NaN detected for input {k}. ratios={ratios}")
+                    F1_0 = _get_F_value(df_new, dmu, year_t, out, label0, frontier_id=1)  # F(label0, t+1)
+                    F1_1 = _get_F_value(df_new, dmu, year_t, out, label1, frontier_id=1)  # F(label1, t+1)
+
+                    r_t  = _safe_div(F0_1, F0_0)
+                    r_t1 = _safe_div(F1_1, F1_0)
+
+                    # どれかが欠損/非正なら G_k は定義不能（log が取れない/分母ゼロ等）
+                    if pd.isna(r_t) or pd.isna(r_t1) or (r_t <= 0) or (r_t1 <= 0):
+                        valid = False
+                        if debug:
+                            print(f"[WARN][{dmu}] ACCUM_k invalid for k={k}, other_bits={other_bits}, "
+                                f"r_t={r_t}, r_t1={r_t1}")
+                        break
+
+                    # log 空間で重み付き加算： (1/(2m!)) Σ weight*(log r_t + log r_t1)
+                    log_sum += weight * (np.log(r_t) + np.log(r_t1))
+
+                if not valid:
                     ACCUM_k = np.nan
                 else:
-                    ACCUM_k = np.prod(ratios) ** (1.0 / len(ratios))
+                    ACCUM_k = float(np.exp(log_sum / (2.0 * m_fact)))  # 2m! で割る（両期間分）[1](https://kwanseio365-my.sharepoint.com/personal/fjn61288_nuc_kwansei_ac_jp/Documents/Microsoft%20Copilot%20%E3%83%81%E3%83%A3%E3%83%83%E3%83%88%20%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB/ForJPA_v3.pdf)
 
                 if debug:
                     ACCUM_calc = ACCUM_calc * (ACCUM_k if not pd.isna(ACCUM_k) else 1.0)
 
                 ACCUM_k_cagr = _cagr(ACCUM_k, year_t, year_t1, dmu, total_growth) if not pd.isna(ACCUM_k) else np.nan
                 ACCUM_k_list.append(ACCUM_k_cagr)
+                ACCUM_k_raw_list.append(ACCUM_k)
+        # --- 置き換えここまで ---
+
+        # ===== via p10 / via p01 の分解値と symm(G1,G2) を比較（m==2のみ） =====
+        if m == 2:
+            out0 = outputs[0]  # 既に out = outputs[0] を使っている前提なら out でOK
+
+            # F_t(·) と F_{t+1}(·) を取得（あなたの _get_F_value を利用）
+            F0_00 = _get_F_value(df_new, dmu, year_t, out0, "p00", frontier_id=0)
+            F0_10 = _get_F_value(df_new, dmu, year_t, out0, "p10", frontier_id=0)
+            F0_01 = _get_F_value(df_new, dmu, year_t, out0, "p01", frontier_id=0)
+            F0_11 = _get_F_value(df_new, dmu, year_t, out0, "p11", frontier_id=0)
+
+            F1_00 = _get_F_value(df_new, dmu, year_t, out0, "p00", frontier_id=1)
+            F1_10 = _get_F_value(df_new, dmu, year_t, out0, "p10", frontier_id=1)
+            F1_01 = _get_F_value(df_new, dmu, year_t, out0, "p01", frontier_id=1)
+            F1_11 = _get_F_value(df_new, dmu, year_t, out0, "p11", frontier_id=1)
+
+            # 安全割り算（あなたの _safe_div を利用）
+            r0_10_00 = _safe_div(F0_10, F0_00)  # Ft: p10/p00
+            r1_10_00 = _safe_div(F1_10, F1_00)  # Ft1: p10/p00
+            r0_11_10 = _safe_div(F0_11, F0_10)  # Ft: p11/p10
+            r1_11_10 = _safe_div(F1_11, F1_10)  # Ft1: p11/p10
+
+            r0_01_00 = _safe_div(F0_01, F0_00)  # Ft: p01/p00
+            r1_01_00 = _safe_div(F1_01, F1_00)  # Ft1: p01/p00
+            r0_11_01 = _safe_div(F0_11, F0_01)  # Ft: p11/p01
+            r1_11_01 = _safe_div(F1_11, F1_01)  # Ft1: p11/p01
+
+            def _geom2(a, b):
+                if pd.isna(a) or pd.isna(b) or a <= 0 or b <= 0:
+                    return np.nan
+                return float(np.sqrt(a * b))
+
+            # 経路A（via p10）：入力1→入力2
+            G1_p10 = _geom2(r0_10_00, r1_10_00)
+            G2_p10 = _geom2(r0_11_10, r1_11_10)
+
+            # 経路B（via p01）：入力2→入力1
+            G2_p01 = _geom2(r0_01_00, r1_01_00)
+            G1_p01 = _geom2(r0_11_01, r1_11_01)
+
+            # 対称化（あなたの実装で得た G1,G2）
+            G1_symm = ACCUM_k_raw_list[0] if len(ACCUM_k_raw_list) >= 1 else np.nan
+            G2_symm = ACCUM_k_raw_list[1] if len(ACCUM_k_raw_list) >= 2 else np.nan
+
+            # 差分を先に作る（NaNならNaN）
+            dG1_p10 = (G1_symm - G1_p10) if (not pd.isna(G1_symm) and not pd.isna(G1_p10)) else np.nan
+            dG2_p10 = (G2_symm - G2_p10) if (not pd.isna(G2_symm) and not pd.isna(G2_p10)) else np.nan
+            dG1_p01 = (G1_symm - G1_p01) if (not pd.isna(G1_symm) and not pd.isna(G1_p01)) else np.nan
+            dG2_p01 = (G2_symm - G2_p01) if (not pd.isna(G2_symm) and not pd.isna(G2_p01)) else np.nan
+
+            # gap = max abs（4つの差分の絶対値の最大）
+            _abs_list = []
+            for v in (dG1_p10, dG2_p10, dG1_p01, dG2_p01):
+                if not pd.isna(v):
+                    _abs_list.append(abs(v))
+            gap = max(_abs_list) if len(_abs_list) > 0 else np.nan
+
+            path_compare_rows.append({
+                orig_dmu_name: dmu,
+                "year_t": year_t,
+                "year_t1": year_t1,
+                "ACCUM_post": float(ACCUM) if not pd.isna(ACCUM) else np.nan,
+
+                "G1_symm": G1_symm,
+                "G2_symm": G2_symm,
+
+                "G1_via_p10": G1_p10,
+                "G2_via_p10": G2_p10,
+
+                "G1_via_p01": G1_p01,
+                "G2_via_p01": G2_p01,
+
+                "dG1(symm-p10)": dG1_p10,
+                "dG2(symm-p10)": dG2_p10,
+                "dG1(symm-p01)": dG1_p01,
+                "dG2(symm-p01)": dG2_p01,
+
+                "gap(max|dG|)": gap
+            })
+        # ===== ここまで =====
 
         y0 = df_new.loc[(dmu, year_t), out]
         y1 = df_new.loc[(dmu, year_t1), out]
@@ -548,6 +685,27 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
     # df_mi の index 名を元の DMU 名にする
     df_mi = pd.DataFrame(rows, columns=colnames).set_index(orig_dmu_name)
 
+    # --- via p10 / via p01 と symm(G1,G2) の比較表を出力（m==2のみ） ---
+    df_path_compare = pd.DataFrame(path_compare_rows)
+    if not df_path_compare.empty and not kwargs.get("return_path_compare", False):
+        df_path_compare = df_path_compare.set_index(orig_dmu_name)
+
+        print("\n[CHECK] Path-dependent decomposition vs Symmetrized (G1,G2)")
+        if tabulate is not None:
+            print(tabulate(df_path_compare, headers="keys", tablefmt="github",
+                        showindex=True, floatfmt=".6f"))
+        else:
+            print(df_path_compare.to_string(float_format=lambda x: f"{x:.6f}"))
+
+
+    # df_gap_only = df_path_compare[["gap(max|dG|)"]].copy()
+    # print("\n[CHECK] gap only (for manual sorting later)")
+    # if tabulate is not None:
+    #     print(tabulate(df_gap_only, headers="keys", tablefmt="github",
+    #                 showindex=True, floatfmt=".6f"))
+    # else:
+    #     print(df_gap_only.to_string(float_format=lambda x: f"{x:.6f}"))
+
     # --- keep_columns マージ処理（元の index レベル名を完全に使う） ---
     if keep_columns is not None:
         # orig_dmu_name, orig_year_name は関数冒頭で決定済みとする
@@ -629,7 +787,10 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
             # インデックスを元のレベル名で戻す
             df_new = df_new_merged.set_index([orig_dmu_name, orig_year_name])
 
-    return df_new, df_mi
+    if kwargs.get("return_path_compare", False):
+        # 既に return_accum_check を付けているなら、返し方は要調整（どちらを優先するか）
+        return df_new, df_mi, df_path_compare
 
+    return df_new, df_mi
 
 

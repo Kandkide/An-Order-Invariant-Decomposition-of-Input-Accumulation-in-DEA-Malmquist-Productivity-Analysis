@@ -86,6 +86,7 @@ Instead, it prints tabulated results to **standard output** (stdout) using `tabu
 Expected terminal output:
 - A header line `Table 1`, followed by a tabulated table (one-input case)
 - A header line `Table 2`, followed by a tabulated table (two-input case)
+- A header line `Table 3`, followed by a tabulated table (two-input case; path dependent values)
 
 To save the printed tables for replication records, redirect stdout to a file:
 

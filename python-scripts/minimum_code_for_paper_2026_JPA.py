@@ -25,13 +25,17 @@ pwt110_df['rn_per_worker'] =pwt110_df['rn']/pwt110_df['emp']
 pwt110_df = filter_oil_producers(pwt110_df, mode='final', invert=True)
 
 # --- the Malmquist decomposition ---
-_, result = dea_add_frontier_point_estimates(pwt110_df, year_t=2000, year_t1=2010, inputs=['rn_per_hour_worked'], outputs=['rgdpo_per_hour_worked'], keep_columns=['countrycode'], total_growth=None)
-result_tabulated = tabulate(result, headers='keys', tablefmt='pretty', showindex=True)
+_, df_mi = dea_add_frontier_point_estimates(pwt110_df, year_t=2000, year_t1=2010, inputs=['rn_per_hour_worked'], outputs=['rgdpo_per_hour_worked'], keep_columns=['countrycode'], total_growth=None)
+result_tabulated = tabulate(df_mi, headers='keys', tablefmt='pretty', showindex=True)
 print("Table 1")
 print(result_tabulated)
 
-_, result = dea_add_frontier_point_estimates(pwt110_df, year_t=2000, year_t1=2010, inputs=['rn_per_hour_worked', 'hc'], outputs=['rgdpo_per_hour_worked'], keep_columns=['countrycode'], total_growth=None)
-result_tabulated = tabulate(result, headers='keys', tablefmt='pretty', showindex=True)
+_, df_mi, df_path_compare = dea_add_frontier_point_estimates(pwt110_df, year_t=2000, year_t1=2010, inputs=['rn_per_hour_worked', 'hc'], outputs=['rgdpo_per_hour_worked'], keep_columns=['countrycode'], total_growth=None, return_path_compare=True)
+result_tabulated = tabulate(df_mi, headers='keys', tablefmt='pretty', showindex=True)
 print("Table 2")
+print(result_tabulated)
+
+result_tabulated = tabulate(df_path_compare, headers='keys', tablefmt='pretty', showindex=True)
+print("Table 3")
 print(result_tabulated)
 
