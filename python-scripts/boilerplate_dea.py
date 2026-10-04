@@ -454,7 +454,7 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
 
                 # 論文の定義：
                 # G_k = Π_{σ∈S_m} ( r^{(t)}_{σ,posσ(k)} r^{(t+1)}_{σ,posσ(k)} )^{1/(2m!)}
-                # を「直前集合 S の重み |S|!(m-|S|-1)!」で集計して実装する [1](https://kwanseio365-my.sharepoint.com/personal/fjn61288_nuc_kwansei_ac_jp/Documents/Microsoft%20Copilot%20%E3%83%81%E3%83%A3%E3%83%83%E3%83%88%20%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB/ForJPA_v3.pdf)
+                # を「直前集合 S の重み |S|!(m-|S|-1)!」で集計して実装する 
 
                 log_sum = 0.0
                 valid = True
@@ -497,7 +497,7 @@ def dea_add_frontier_point_estimates(df, year_t, year_t1, inputs, outputs,
                 if not valid:
                     ACCUM_k = np.nan
                 else:
-                    ACCUM_k = float(np.exp(log_sum / (2.0 * m_fact)))  # 2m! で割る（両期間分）[1](https://kwanseio365-my.sharepoint.com/personal/fjn61288_nuc_kwansei_ac_jp/Documents/Microsoft%20Copilot%20%E3%83%81%E3%83%A3%E3%83%83%E3%83%88%20%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB/ForJPA_v3.pdf)
+                    ACCUM_k = float(np.exp(log_sum / (2.0 * m_fact)))  # 2m! で割る（両期間分）
 
                 if debug:
                     ACCUM_calc = ACCUM_calc * (ACCUM_k if not pd.isna(ACCUM_k) else 1.0)
