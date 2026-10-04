@@ -69,18 +69,18 @@ source ./init_python_venv.sh
 
 ### 3.2 Main Python Script
 
-- `minimum_code_for_paper_2026_JPA.py`
+- `minimum_code_for_paper_2026.py`
 
 ### 3.3 Run from CLI (recommended for replication)
 
 ```bash
 source ./init_python_venv.sh
-python ./python-scripts/minimum_code_for_paper_2026_JPA.py
+python ./python-scripts/minimum_code_for_paper_2026.py
 ```
 
 ### 3.4 Outputs (what to expect)
 
-`minimum_code_for_paper_2026_JPA.py` does **not** write output files by default.
+`minimum_code_for_paper_2026.py` does **not** write output files by default.
 Instead, it prints tabulated results to **standard output** (stdout) using `tabulate`.
 
 Expected terminal output:
@@ -91,7 +91,7 @@ To save the printed tables for replication records, redirect stdout to a file:
 
 ```bash
 source ./init_python_venv.sh
-python ./python-scripts/minimum_code_for_paper_2026_JPA.py | tee replication_tables_2000_2010.txt
+python ./python-scripts/minimum_code_for_paper_2026.py | tee replication_tables_2000_2010.txt
 ```
 ### 3.5 VS Code shortcut to run Python scripts (optional)
 
